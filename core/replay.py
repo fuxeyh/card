@@ -1,6 +1,7 @@
 # core/replay.py
 # -*- coding: utf-8 -*-
 """Rebuild in-memory state from a ledger (for crash/exit recovery)."""
+
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
@@ -8,6 +9,7 @@ from typing import Any, Dict, List, Optional
 from .cards import Card, sort_cards
 from .player import Player
 from .enums import EventType, Role
+
 
 def rebuild(players: List[Player], ledger) -> Dict[str, Any]:
     events = ledger.read_all()
@@ -49,7 +51,9 @@ def rebuild(players: List[Player], ledger) -> Dict[str, Any]:
             for code in codes:
                 for i, c in enumerate(hand):
                     if c.code == code or c.rank() == code:
-                        tmp.append(c); del hand[i]; break
+                        tmp.append(c)
+                        del hand[i]
+                        break
             last_play = tmp
             last_player = idx
             current_index = (idx + 1) % len(players)

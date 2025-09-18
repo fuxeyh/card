@@ -1,9 +1,11 @@
 # game.py
 # -*- coding: utf-8 -*-
 """Terminal game loop: simple, commented, and recoverable via ledger."""
+
 from __future__ import annotations
 
-import os, uuid
+import os
+import uuid
 from typing import List
 
 from core.cards import Card, normalize_token
@@ -16,6 +18,7 @@ from core.replay import rebuild
 
 LEDGER_DIR = "./ledger"
 LATEST_PTR = os.path.join(LEDGER_DIR, "_latest.txt")
+
 
 class Game:
     def __init__(self, names: List[str]):
@@ -41,10 +44,13 @@ class Game:
     # ------------------------------- Lifecycle -------------------------------
     def setup(self) -> None:
         # Announce the game in ledger
-        self.ledger.append(EventType.GAME_START, {
-            "game_id": self.game_id,
-            "names": [p.name for p in self.players],
-        })
+        self.ledger.append(
+            EventType.GAME_START,
+            {
+                "game_id": self.game_id,
+                "names": [p.name for p in self.players],
+            },
+        )
         # Deal + bidding done in rules
         self.rules.setup(self.players)
         self.turn_index = self.rules.starting_player_index(self.players)
@@ -71,29 +77,40 @@ class Game:
             p = self.players[self.turn_index]
             self._print_status(self.turn_index)
 
-            cmd = input(f"{p.name} 出牌，输入牌面或命令[help/show/last/tips/sort/pass]：").strip()
+            cmd = input(
+                f"{p.name} 出牌，输入牌面或命令[help/show/last/tips/sort/pass]："
+            ).strip()
 
             # ----- Utility commands -----
             if cmd.lower() in ("help", "?"):
-                print_help(); continue
+                print_help()
+                continue
             if cmd.lower() == "show":
-                for pl in self.players: print(pl.display())
+                for pl in self.players:
+                    print(pl.display())
                 continue
             if cmd.lower() == "last":
-                if self.last_play: print("上家出牌：", " ".join([c.short() for c in self.last_play]))
-                else: print("当前为新一轮，无需跟牌。")
+                if self.last_play:
+                    print("上家出牌：", " ".join([c.short() for c in self.last_play]))
+                else:
+                    print("当前为新一轮，无需跟牌。")
                 continue
             if cmd.lower() == "sort":
-                p.sort(); print("已整理手牌。"); continue
+                p.sort()
+                print("已整理手牌。")
+                continue
             if cmd.lower() == "tips":
                 tips = self._simple_tips(p)
-                if tips: print("可考虑：", " | ".join([" ".join(t) for t in tips[:5]]))
-                else: print("暂无提示。")
+                if tips:
+                    print("可考虑：", " | ".join([" ".join(t) for t in tips[:5]]))
+                else:
+                    print("暂无提示。")
                 continue
             if cmd.lower() == "pass":
                 # Can't pass if you start the trick
                 if not self.last_play or self.last_player == self.turn_index:
-                    print("你是本轮首家，不能 PASS。"); continue
+                    print("你是本轮首家，不能 PASS。")
+                    continue
                 passes_in_row += 1
                 self.ledger.append(EventType.PASS, {"player_index": self.turn_index})
                 if passes_in_row >= passes_needed:
@@ -101,45 +118,67 @@ class Game:
                     self.last_play = []
                     self.last_player = None
                     passes_in_row = 0
-                    self.ledger.append(EventType.ROUND_RESET, {"reason": "passes_reset"})
+                    self.ledger.append(
+                        EventType.ROUND_RESET, {"reason": "passes_reset"}
+                    )
                 self.turn_index = (self.turn_index + 1) % 3
                 continue
 
             # ----- Parse ranks from user input -----
             ranks = [normalize_token(t) for t in cmd.split() if t.strip()]
-            if not ranks: print("输入为空，请重试。"); continue
-            if not p.has_cards(ranks): print("你没有这些牌，请检查输入。"); continue
+            if not ranks:
+                print("输入为空，请重试。")
+                continue
+            if not p.has_cards(ranks):
+                print("你没有这些牌，请检查输入。")
+                continue
 
             # Assemble temporary cards for validation
             temp = self._pick_from_hand(p, ranks)
             m = self.registry.evaluate(temp)
-            if m is None: print("这不是一个合法的出牌组合。"); continue
+            if m is None:
+                print("这不是一个合法的出牌组合。")
+                continue
 
             # Need to beat the last play when not starting
             if self.last_play and self.last_player != self.turn_index:
                 if not self.rules.can_play(self.registry, temp, self.last_play):
-                    print("无法大过上家，请重试或输入 pass。"); continue
+                    print("无法大过上家，请重试或输入 pass。")
+                    continue
 
             # Commit
             played = p.take_cards(ranks)
             self.last_play = played
             self.last_player = self.turn_index
             passes_in_row = 0
-            print(f"{p.name} 出：", " ".join([c.short() for c in played]), f"[{m.name}]")
+            print(
+                f"{p.name} 出：", " ".join([c.short() for c in played]), f"[{m.name}]"
+            )
 
             # Log onto ledger (precise codes + human tokens)
-            self.ledger.append(EventType.PLAY, {
-                "player_index": self.turn_index,
-                "codes": [c.code for c in played],
-                "tokens": [c.rank() for c in played],
-                "match": {"name": m.name, "key": m.key, "meta": m.meta, "priority": m.priority},
-            })
+            self.ledger.append(
+                EventType.PLAY,
+                {
+                    "player_index": self.turn_index,
+                    "codes": [c.code for c in played],
+                    "tokens": [c.rank() for c in played],
+                    "match": {
+                        "name": m.name,
+                        "key": m.key,
+                        "meta": m.meta,
+                        "priority": m.priority,
+                    },
+                },
+            )
 
             # Win?
             if self.rules.check_win(p):
                 print(f"\n🎉 {p.name} 出完了！")
                 print("结果：地主胜" if p.role == Role.LANDLORD else "结果：农民胜")
-                self.ledger.append(EventType.GAME_END, {"winner_index": self.turn_index, "role": p.role.value})
+                self.ledger.append(
+                    EventType.GAME_END,
+                    {"winner_index": self.turn_index, "role": p.role.value},
+                )
                 break
 
             # Next player
@@ -153,7 +192,9 @@ class Game:
         for r in ranks:
             for i, c in enumerate(hand):
                 if c.rank() == r:
-                    tmp.append(c); del hand[i]; break
+                    tmp.append(c)
+                    del hand[i]
+                    break
         return tmp
 
     def _simple_tips(self, p: Player) -> List[List[str]]:
@@ -169,7 +210,9 @@ class Game:
             suggestions.append([low.rank()])
             cnt = Counter([c.rank() for c in p.cards])
             for r, num in sorted(cnt.items(), key=lambda kv: RANK_VALUE[kv[0]]):
-                if num >= 2: suggestions.append([r, r]); break
+                if num >= 2:
+                    suggestions.append([r, r])
+                    break
             return suggestions
 
         # Must beat
@@ -180,11 +223,17 @@ class Game:
         n = len(p.cards)
         tested = set()
         sizes = {len(target)}
-        if t_eval.name != "joker_bomb": sizes |= {2, 4}
+        if t_eval.name != "joker_bomb":
+            sizes |= {2, 4}
         for k in sorted(sizes):
             for combo in combinations(range(n), k):
-                ranks = tuple(sorted([p.cards[i].rank() for i in combo], key=lambda r: RANK_VALUE[r]))
-                if (k, ranks) in tested: continue
+                ranks = tuple(
+                    sorted(
+                        [p.cards[i].rank() for i in combo], key=lambda r: RANK_VALUE[r]
+                    )
+                )
+                if (k, ranks) in tested:
+                    continue
                 tested.add((k, ranks))
                 subset = [p.cards[i] for i in combo]
                 if self.rules.can_play(self.registry, subset, target):
@@ -192,11 +241,22 @@ class Game:
         return suggestions
 
     def _print_status(self, idx: int) -> None:
-        order_names = " -> ".join([pl.name for pl in self.players[idx:] + self.players[:idx]])
+        order_names = " -> ".join(
+            [pl.name for pl in self.players[idx:] + self.players[:idx]]
+        )
         print("\n当前出牌顺序：", order_names)
-        last = "PASS" if not self.last_play else " ".join([c.short() for c in self.last_play])
-        src = f"（来自 {self.players[self.last_player].name}）" if self.last_player is not None else ""
+        last = (
+            "PASS"
+            if not self.last_play
+            else " ".join([c.short() for c in self.last_play])
+        )
+        src = (
+            f"（来自 {self.players[self.last_player].name}）"
+            if self.last_player is not None
+            else ""
+        )
         print("桌面上一次出牌：", last, src)
+
 
 def print_help() -> None:  # pragma: no cover
     print(
