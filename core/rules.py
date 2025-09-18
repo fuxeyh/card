@@ -5,6 +5,7 @@
 This keeps the code focused and easy to read. To customize, you can still
 extend HandPattern (牌型) or tweak bidding here.
 """
+
 from __future__ import annotations
 
 import random
@@ -17,26 +18,40 @@ from .registry import HandRegistry
 from .enums import Role, EventType
 from .ledger import Ledger
 
+
 @dataclass
 class GameConfig:
     include_jokers: bool = True  # kept for possible toggles later
 
+
 class RuleSet:
     """Small interface so the Game class stays clean."""
+
     def __init__(self, cfg: GameConfig, ledger: Ledger):
         self.cfg = cfg
         self.ledger = ledger
 
     def setup(self, players: List[Player]) -> None: ...
-    def starting_player_index(self, players: List[Player]) -> int: return 0
-    def can_play(self, registry: HandRegistry, current: Sequence[Card], last: Sequence[Card]) -> bool:
-        if not last: return registry.evaluate(current) is not None
+    def starting_player_index(self, players: List[Player]) -> int:
+        return 0
+
+    def can_play(
+        self, registry: HandRegistry, current: Sequence[Card], last: Sequence[Card]
+    ) -> bool:
+        if not last:
+            return registry.evaluate(current) is not None
         return registry.can_beat(current, last)
-    def passes_to_reset(self) -> int: return 2
-    def check_win(self, player: Player) -> bool: return player.is_empty()
+
+    def passes_to_reset(self) -> int:
+        return 2
+
+    def check_win(self, player: Player) -> bool:
+        return player.is_empty()
+
 
 class StandardDouDizhuRules(RuleSet):
     """3-player standard DDZ with bidding and 3 bottom cards."""
+
     def __init__(self, cfg: GameConfig, ledger: Ledger):
         super().__init__(cfg, ledger)
         self.bottom: List[Card] = []
@@ -61,20 +76,26 @@ class StandardDouDizhuRules(RuleSet):
             p.cards = sort_cards(p.cards)
 
         # Log DEAL with exact codes (precise recovery)
-        self.ledger.append(EventType.DEAL, {
-            "players": {i: [c.code for c in deals[i]] for i in deals},
-            "bottom": [c.code for c in self.bottom],
-        })
+        self.ledger.append(
+            EventType.DEAL,
+            {
+                "players": {i: [c.code for c in deals[i]] for i in deals},
+                "bottom": [c.code for c in self.bottom],
+            },
+        )
 
         # Bidding 0-3; random landlord if all 0
         self._bidding(players)
 
         # Landlord takes the bottom
         players[self.landlord_idx].add_cards(self.bottom)
-        self.ledger.append(EventType.SET_LANDLORD, {
-            "landlord_idx": self.landlord_idx,
-            "bottom": [c.code for c in self.bottom],
-        })
+        self.ledger.append(
+            EventType.SET_LANDLORD,
+            {
+                "landlord_idx": self.landlord_idx,
+                "bottom": [c.code for c in self.bottom],
+            },
+        )
         self.bottom = []
 
     def _bidding(self, players: List[Player]) -> None:
@@ -89,12 +110,14 @@ class StandardDouDizhuRules(RuleSet):
                 try:
                     s = input(f"{p.name} 请叫分 [0-3]：").strip() or "0"
                     bid = int(s)
-                    if bid < 0 or bid > 3: raise ValueError
+                    if bid < 0 or bid > 3:
+                        raise ValueError
                     break
                 except Exception:
                     print("请输入 0 1 2 或 3")
             self.ledger.append(EventType.BID, {"player_index": idx, "bid": bid})
-            if bid > highest: highest, winner = bid, idx
+            if bid > highest:
+                highest, winner = bid, idx
         if highest <= 0 or winner is None:
             print("无人叫分，随机指定地主。")
             winner = random.randrange(0, 3)

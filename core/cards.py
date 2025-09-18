@@ -6,6 +6,7 @@
 This unifies representation (no separate rank/suit fields) while still allowing
 us to parse rank/suit via small helpers.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -13,7 +14,21 @@ from typing import Dict, List, Optional, Sequence
 
 # -------- Rank & suit order used for sorting / comparison --------
 RANK_ORDER: List[str] = [
-    "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A", "2", "BJ", "RJ"
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "10",
+    "J",
+    "Q",
+    "K",
+    "A",
+    "2",
+    "BJ",
+    "RJ",
 ]
 RANK_VALUE: Dict[str, int] = {r: i for i, r in enumerate(RANK_ORDER)}
 SUITS: List[str] = ["♠", "♥", "♣", "♦"]
@@ -26,22 +41,25 @@ TOKEN_NORMALIZATION = {
     "k": "K",
     "a": "A",
     "t": "10",
-    "1": "A",   # common habit: 1 => A
+    "1": "A",  # common habit: 1 => A
     "01": "A",
     "bj": "BJ",
     "rj": "RJ",
 }
+
 
 def normalize_token(tok: str) -> str:
     """Normalize one user-typed token into a canonical rank string."""
     t = tok.strip().upper()
     return TOKEN_NORMALIZATION.get(t, t)
 
+
 @dataclass(frozen=True, order=True)
 class Card:
     """Single-field card representation.
     code: e.g. '3♠', '10♦', 'BJ', 'RJ'.
     """
+
     code: str
 
     # ---------- Derived helpers (do not store rank/suit separately) ----------
@@ -67,6 +85,7 @@ class Card:
         """Short text for console output (rank only)."""
         return self.rank()
 
+
 # ------------------------------ Deck helpers ------------------------------
 def standard_deck() -> list[Card]:
     """Build one 54-card Dou Dizhu deck (52 + 2 jokers)."""
@@ -77,6 +96,7 @@ def standard_deck() -> list[Card]:
     deck.append(Card("BJ"))
     deck.append(Card("RJ"))
     return deck
+
 
 def sort_cards(cards: Sequence[Card]) -> list[Card]:
     """Sort by rank value first, then suit for stable display."""

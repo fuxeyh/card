@@ -1,16 +1,18 @@
 # main.py
 # -*- coding: utf-8 -*-
 """Entry point – focused 3-player, single-deck Dou Dizhu with a recoverable ledger."""
+
 from __future__ import annotations
 
 import os
-from game import Game, LEDGER_DIR, LATEST_PTR
+from game import Game, LATEST_PTR
+
 
 def run() -> None:
     print("=== 精简可读版终端斗地主（3人、单副牌、含账本恢复） ===")
     names = []
     for i in range(3):
-        n = input(f"请输入玩家{i+1}姓名：").strip() or f"玩家{i+1}"
+        n = input(f"请输入玩家{i + 1}姓名：").strip() or f"玩家{i + 1}"
         names.append(n)
 
     g = Game(names)
@@ -33,6 +35,7 @@ def run() -> None:
 
     g.play()
     print("游戏结束，感谢游玩！")
+
 
 if __name__ == "__main__":
     run()

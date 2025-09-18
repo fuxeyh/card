@@ -1,6 +1,7 @@
 # core/registry.py
 # -*- coding: utf-8 -*-
 """Pattern registry + comparison rules (small and focused)."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -8,6 +9,7 @@ from typing import List, Optional, Sequence
 
 from .cards import Card
 from .hand_patterns import HandMatch, HandPattern, BUILTIN_PATTERNS
+
 
 @dataclass
 class HandRegistry:
@@ -33,13 +35,15 @@ class HandRegistry:
 
     def can_beat(self, current: Sequence[Card], last: Sequence[Card]) -> bool:
         """Whether `current` can beat `last` under pattern rules."""
-        ca = self.evaluate(current); cb = self.evaluate(last)
+        ca = self.evaluate(current)
+        cb = self.evaluate(last)
         if ca is None or cb is None:
             return False
         if ca.name != cb.name:
             return ca.priority > cb.priority  # cross-pattern rule
         # same pattern name -> require same shape and bigger key
-        ap = self._find(ca.name); bp = self._find(cb.name)
+        ap = self._find(ca.name)
+        bp = self._find(cb.name)
         if ap and bp and ap.same_shape(ca, cb):
             return ca.key > cb.key
         return False
