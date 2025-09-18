@@ -1,6 +1,8 @@
 # core/ledger.py
 # -*- coding: utf-8 -*-
+"""Append-only JSONL ledger with hash chaining (for recovery & audit)."""
 from __future__ import annotations
+
 import json, os, hashlib, datetime
 from dataclasses import dataclass
 from typing import Any, Dict, List
@@ -25,6 +27,10 @@ class LedgerEvent:
     hash: str
 
 class Ledger:
+    """Small, dependency-free ledger.
+    - append(EventType, payload) -> writes one JSON line with hash.
+    - read_all() -> verifies the chain and yields events.
+    """
     def __init__(self, path: str):
         self.path = path
         self._seq = 0
@@ -38,6 +44,7 @@ class Ledger:
                         self._last_hash = obj.get("hash", self._last_hash)
                     except Exception:
                         continue
+
     def append(self, etype: EventType, payload: Dict[str, Any]) -> LedgerEvent:
         self._seq += 1
         core = {"seq": self._seq, "type": etype.value, "payload": payload, "ts": _now_iso()}
@@ -47,6 +54,7 @@ class Ledger:
             f.write(json.dumps(full, ensure_ascii=False) + "\n")
         self._last_hash = rec_hash
         return LedgerEvent(**full)  # type: ignore
+
     def read_all(self) -> List[LedgerEvent]:
         out: List[LedgerEvent] = []
         if not os.path.exists(self.path):
@@ -57,7 +65,7 @@ class Ledger:
                 obj = json.loads(line)
                 expected = _hash_record(prev, {k: obj[k] for k in ["seq", "type", "payload", "ts"]})
                 if expected != obj.get("hash"):
-                    raise ValueError("Ledger corrupted at seq {}".format(obj.get("seq")))
+                    raise ValueError(f"Ledger corrupted at seq {obj.get('seq')}")
                 prev = obj.get("hash", "")
                 out.append(LedgerEvent(**obj))  # type: ignore
         return out

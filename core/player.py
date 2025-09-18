@@ -1,8 +1,11 @@
 # core/player.py
 # -*- coding: utf-8 -*-
+"""Player dataclass and common hand operations."""
 from __future__ import annotations
+
 from dataclasses import dataclass, field
 from typing import List
+
 from .cards import Card, normalize_token, sort_cards, RANK_VALUE
 from .enums import Role
 
@@ -10,18 +13,21 @@ from .enums import Role
 class Player:
     name: str
     cards: List[Card] = field(default_factory=list)
-    role: Role = Role.PEASANT
+    role: Role = Role.PEASANT  # will be set during bidding
 
+    # ----------------------------- Hand Ops -----------------------------
     def sort(self) -> None:
         self.cards = sort_cards(self.cards)
 
     def has_cards(self, ranks: List[str]) -> bool:
+        """Check multiset containment by rank tokens (not specific suits)."""
         from collections import Counter
         target = Counter([normalize_token(r) for r in ranks])
         own = Counter([c.rank() for c in self.cards])
         return all(own[r] >= n for r, n in target.items())
 
     def take_cards(self, ranks: List[str]) -> List[Card]:
+        """Remove the first matching instances by rank tokens and return them."""
         taken: List[Card] = []
         req = [normalize_token(r) for r in ranks]
         for r in req:
@@ -40,6 +46,7 @@ class Player:
         return len(self.cards) == 0
 
     def display(self) -> str:
+        """One-line grouped summary for console."""
         self.sort()
         from collections import Counter
         cnt = Counter([c.rank() for c in self.cards])
