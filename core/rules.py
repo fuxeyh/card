@@ -15,7 +15,7 @@ from .cards import Card, standard_deck, sort_cards
 from .player import Player
 from .registry import HandRegistry
 from .enums import Role, EventType
-from .ledger import Ledger
+from .events import EventDispatcher
 
 @dataclass
 class GameConfig:
@@ -41,9 +41,9 @@ class BiddingController:
 
 class RuleSet:
     """Small interface so the Game class stays clean."""
-    def __init__(self, cfg: GameConfig, ledger: Ledger):
+    def __init__(self, cfg: GameConfig, dispatcher: EventDispatcher):
         self.cfg = cfg
-        self.ledger = ledger
+        self.dispatcher = dispatcher
 
     def setup(self, players: List[Player]) -> None: ...
     def starting_player_index(self, players: List[Player]) -> int: return 0
@@ -55,8 +55,8 @@ class RuleSet:
 
 class StandardDouDizhuRules(RuleSet):
     """3-player standard DDZ with bidding and 3 bottom cards."""
-    def __init__(self, cfg: GameConfig, ledger: Ledger, bidding_controller: Optional[BiddingController] = None):
-        super().__init__(cfg, ledger)
+    def __init__(self, cfg: GameConfig, dispatcher: EventDispatcher, bidding_controller: Optional[BiddingController] = None):
+        super().__init__(cfg, dispatcher)
         self.bottom: List[Card] = []
         self.landlord_idx: int = 0
         self._bidding_controller = bidding_controller
@@ -80,7 +80,7 @@ class StandardDouDizhuRules(RuleSet):
             p.cards = sort_cards(p.cards)
 
         # Log DEAL with exact codes (precise recovery)
-        self.ledger.append(EventType.DEAL, {
+        self.dispatcher.emit(EventType.DEAL, {
             "players": {i: [c.code for c in deals[i]] for i in deals},
             "bottom": [c.code for c in self.bottom],
         })
@@ -90,7 +90,7 @@ class StandardDouDizhuRules(RuleSet):
 
         # Landlord takes the bottom
         players[self.landlord_idx].add_cards(self.bottom)
-        self.ledger.append(EventType.SET_LANDLORD, {
+        self.dispatcher.emit(EventType.SET_LANDLORD, {
             "landlord_idx": self.landlord_idx,
             "bottom": [c.code for c in self.bottom],
         })
@@ -109,7 +109,7 @@ class StandardDouDizhuRules(RuleSet):
             bid = controller.choose_bid(p, highest) if controller else 0
             if bid < 0 or bid > 3:
                 raise ValueError("Bidding controller must return 0-3")
-            self.ledger.append(EventType.BID, {"player_index": idx, "bid": bid})
+            self.dispatcher.emit(EventType.BID, {"player_index": idx, "bid": bid})
             if bid > highest: highest, winner = bid, idx
             if controller is not None:
                 controller.on_bid_committed(p, bid, highest)

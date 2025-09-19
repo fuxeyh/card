@@ -13,6 +13,7 @@ from core.rules import GameConfig, RuleSet, StandardDouDizhuRules, BiddingContro
 from core.enums import EventType, Role
 from core.ledger import Ledger
 from core.replay import rebuild
+from core.events import EventDispatcher
 
 LEDGER_DIR = "./ledger"
 LATEST_PTR = os.path.join(LEDGER_DIR, "_latest.txt")
@@ -51,10 +52,11 @@ class Game:
         self.game_id = str(uuid.uuid4())
         self.ledger_path = os.path.join(LEDGER_DIR, f"ledger_{self.game_id}.jsonl")
         self.ledger = Ledger(self.ledger_path)
+        self.dispatcher = EventDispatcher(self.ledger)
 
         # Single ruleset: standard 3-player Dou Dizhu
         self.bidding_controller = CliBiddingController()
-        self.rules: RuleSet = StandardDouDizhuRules(GameConfig(), self.ledger, self.bidding_controller)
+        self.rules: RuleSet = StandardDouDizhuRules(GameConfig(), self.dispatcher, self.bidding_controller)
 
         # Round state
         self.last_play: List[Card] = []
@@ -65,7 +67,7 @@ class Game:
     # ------------------------------- Lifecycle -------------------------------
     def setup(self) -> None:
         # Announce the game in ledger
-        self.ledger.append(EventType.GAME_START, {
+        self.dispatcher.emit(EventType.GAME_START, {
             "game_id": self.game_id,
             "names": [p.name for p in self.players],
         })
@@ -81,6 +83,7 @@ class Game:
     def resume_from_ledger(self, ledger_path: str) -> None:
         """Rebuild full state from a previous ledger (crash-safe)."""
         self.ledger = Ledger(ledger_path)
+        self.dispatcher.bind_ledger(self.ledger)
         state = rebuild(self.players, self.ledger)
         self.last_play = state["last_play"]
         self.last_player = state["last_player"]
@@ -120,7 +123,7 @@ class Game:
                 if not self.last_play or self.last_player == self.turn_index:
                     print("你是本轮首家，不能 PASS。"); continue
                 self.passes_in_row += 1
-                self.ledger.append(EventType.PASS, {
+                self.dispatcher.emit(EventType.PASS, {
                     "player_index": self.turn_index,
                     "streak": self.passes_in_row,
                 })
@@ -130,7 +133,7 @@ class Game:
                     self.last_player = None
                     completed_streak = self.passes_in_row
                     self.passes_in_row = 0
-                    self.ledger.append(EventType.ROUND_RESET, {
+                    self.dispatcher.emit(EventType.ROUND_RESET, {
                         "reason": "passes_reset",
                         "streak": completed_streak,
                     })
@@ -160,7 +163,7 @@ class Game:
             print(f"{p.name} 出：", " ".join([c.short() for c in played]), f"[{m.name}]")
 
             # Log onto ledger (precise codes + human tokens)
-            self.ledger.append(EventType.PLAY, {
+            self.dispatcher.emit(EventType.PLAY, {
                 "player_index": self.turn_index,
                 "codes": [c.code for c in played],
                 "tokens": [c.rank() for c in played],
@@ -171,7 +174,7 @@ class Game:
             if self.rules.check_win(p):
                 print(f"\n🎉 {p.name} 出完了！")
                 print("结果：地主胜" if p.role == Role.LANDLORD else "结果：农民胜")
-                self.ledger.append(EventType.GAME_END, {"winner_index": self.turn_index, "role": p.role.value})
+                self.dispatcher.emit(EventType.GAME_END, {"winner_index": self.turn_index, "role": p.role.value})
                 break
 
             # Next player
