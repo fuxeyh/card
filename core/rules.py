@@ -21,6 +21,24 @@ from .ledger import Ledger
 class GameConfig:
     include_jokers: bool = True  # kept for possible toggles later
 
+class BiddingController:
+    """Externalises how bids are collected/announced (CLI, AI, tests, etc.)."""
+    def on_bidding_start(self, order: Sequence[int], players: Sequence[Player]) -> None:
+        pass
+
+    def choose_bid(self, player: Player, highest_bid: int) -> int:
+        raise NotImplementedError
+
+    def on_bid_committed(self, player: Player, bid: int, highest_bid: int) -> None:
+        pass
+
+    def on_no_bid(self, players: Sequence[Player]) -> None:
+        pass
+
+    def on_landlord_selected(self, player: Player, via_random: bool) -> None:
+        pass
+
+
 class RuleSet:
     """Small interface so the Game class stays clean."""
     def __init__(self, cfg: GameConfig, ledger: Ledger):
@@ -37,10 +55,11 @@ class RuleSet:
 
 class StandardDouDizhuRules(RuleSet):
     """3-player standard DDZ with bidding and 3 bottom cards."""
-    def __init__(self, cfg: GameConfig, ledger: Ledger):
+    def __init__(self, cfg: GameConfig, ledger: Ledger, bidding_controller: Optional[BiddingController] = None):
         super().__init__(cfg, ledger)
         self.bottom: List[Card] = []
         self.landlord_idx: int = 0
+        self._bidding_controller = bidding_controller
 
     def setup(self, players: List[Player]) -> None:
         deck = standard_deck()
@@ -78,30 +97,31 @@ class StandardDouDizhuRules(RuleSet):
         self.bottom = []
 
     def _bidding(self, players: List[Player]) -> None:
-        print("\n--- 叫分阶段（0/1/2/3）---")
         start = random.randrange(0, 3)
         highest = -1
         winner: Optional[int] = None
         order = [(start + i) % 3 for i in range(3)]
+        controller = self._bidding_controller
+        if controller is not None:
+            controller.on_bidding_start(order, players)
         for idx in order:
             p = players[idx]
-            while True:
-                try:
-                    s = input(f"{p.name} 请叫分 [0-3]：").strip() or "0"
-                    bid = int(s)
-                    if bid < 0 or bid > 3: raise ValueError
-                    break
-                except Exception:
-                    print("请输入 0 1 2 或 3")
+            bid = controller.choose_bid(p, highest) if controller else 0
+            if bid < 0 or bid > 3:
+                raise ValueError("Bidding controller must return 0-3")
             self.ledger.append(EventType.BID, {"player_index": idx, "bid": bid})
             if bid > highest: highest, winner = bid, idx
+            if controller is not None:
+                controller.on_bid_committed(p, bid, highest)
         if highest <= 0 or winner is None:
-            print("无人叫分，随机指定地主。")
+            if controller is not None:
+                controller.on_no_bid(players)
             winner = random.randrange(0, 3)
         self.landlord_idx = winner
         for i, p in enumerate(players):
             p.role = Role.LANDLORD if i == winner else Role.PEASANT
-        print(f"地主：{players[winner].name} 获得底牌。")
+        if controller is not None:
+            controller.on_landlord_selected(players[winner], highest <= 0)
 
     def starting_player_index(self, players: List[Player]) -> int:
         return self.landlord_idx

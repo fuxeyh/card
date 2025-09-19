@@ -9,13 +9,35 @@ from typing import List
 from core.cards import Card, normalize_token
 from core.player import Player
 from core.registry import HandRegistry
-from core.rules import GameConfig, RuleSet, StandardDouDizhuRules
+from core.rules import GameConfig, RuleSet, StandardDouDizhuRules, BiddingController
 from core.enums import EventType, Role
 from core.ledger import Ledger
 from core.replay import rebuild
 
 LEDGER_DIR = "./ledger"
 LATEST_PTR = os.path.join(LEDGER_DIR, "_latest.txt")
+
+class CliBiddingController(BiddingController):
+    def on_bidding_start(self, order: List[int], players: List[Player]) -> None:
+        print("\n--- 叫分阶段（0/1/2/3）---")
+
+    def choose_bid(self, player: Player, highest_bid: int) -> int:
+        while True:
+            try:
+                s = input(f"{player.name} 请叫分 [0-3]：").strip() or "0"
+                bid = int(s)
+                if 0 <= bid <= 3:
+                    return bid
+            except Exception:
+                pass
+            print("请输入 0 1 2 或 3")
+
+    def on_no_bid(self, players: List[Player]) -> None:
+        print("无人叫分，随机指定地主。")
+
+    def on_landlord_selected(self, player: Player, via_random: bool) -> None:
+        print(f"地主：{player.name} 获得底牌。")
+
 
 class Game:
     def __init__(self, names: List[str]):
@@ -31,7 +53,8 @@ class Game:
         self.ledger = Ledger(self.ledger_path)
 
         # Single ruleset: standard 3-player Dou Dizhu
-        self.rules: RuleSet = StandardDouDizhuRules(GameConfig(), self.ledger)
+        self.bidding_controller = CliBiddingController()
+        self.rules: RuleSet = StandardDouDizhuRules(GameConfig(), self.ledger, self.bidding_controller)
 
         # Round state
         self.last_play: List[Card] = []
