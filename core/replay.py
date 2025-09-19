@@ -15,6 +15,7 @@ def rebuild(players: List[Player], ledger) -> Dict[str, Any]:
     last_player: Optional[int] = None
     current_index: int = 0
     landlord_idx: Optional[int] = None
+    passes_in_row: int = 0
 
     # Reset players
     for p in players:
@@ -53,16 +54,25 @@ def rebuild(players: List[Player], ledger) -> Dict[str, Any]:
             last_play = tmp
             last_player = idx
             current_index = (idx + 1) % len(players)
+            passes_in_row = 0
         elif t == EventType.PASS.value:
             idx = payload["player_index"]
+            # Prefer stored streak to stay compatible with newer ledgers
+            stored = payload.get("streak")
+            if isinstance(stored, int):
+                passes_in_row = stored
+            else:
+                passes_in_row += 1
             current_index = (idx + 1) % len(players)
         elif t == EventType.ROUND_RESET.value:
             last_play = []
             last_player = None
+            passes_in_row = 0
 
     return {
         "last_play": last_play,
         "last_player": last_player,
         "current_index": current_index,
         "landlord_idx": landlord_idx,
+        "passes_in_row": passes_in_row,
     }

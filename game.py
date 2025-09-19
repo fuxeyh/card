@@ -37,6 +37,7 @@ class Game:
         self.last_play: List[Card] = []
         self.last_player: int | None = None
         self.turn_index: int = 0
+        self.passes_in_row: int = 0
 
     # ------------------------------- Lifecycle -------------------------------
     def setup(self) -> None:
@@ -48,6 +49,7 @@ class Game:
         # Deal + bidding done in rules
         self.rules.setup(self.players)
         self.turn_index = self.rules.starting_player_index(self.players)
+        self.passes_in_row = 0
 
         # Remember latest ledger path for convenient resume
         with open(LATEST_PTR, "w", encoding="utf-8") as f:
@@ -60,12 +62,12 @@ class Game:
         self.last_play = state["last_play"]
         self.last_player = state["last_player"]
         self.turn_index = state["current_index"]
+        self.passes_in_row = state.get("passes_in_row", 0)
 
     # --------------------------------- Loop ----------------------------------
     def play(self) -> None:
         print("\n--- 对局开始 ---")
         passes_needed = self.rules.passes_to_reset()
-        passes_in_row = 0
 
         while True:
             p = self.players[self.turn_index]
@@ -94,14 +96,21 @@ class Game:
                 # Can't pass if you start the trick
                 if not self.last_play or self.last_player == self.turn_index:
                     print("你是本轮首家，不能 PASS。"); continue
-                passes_in_row += 1
-                self.ledger.append(EventType.PASS, {"player_index": self.turn_index})
-                if passes_in_row >= passes_needed:
+                self.passes_in_row += 1
+                self.ledger.append(EventType.PASS, {
+                    "player_index": self.turn_index,
+                    "streak": self.passes_in_row,
+                })
+                if self.passes_in_row >= passes_needed:
                     # New trick
                     self.last_play = []
                     self.last_player = None
-                    passes_in_row = 0
-                    self.ledger.append(EventType.ROUND_RESET, {"reason": "passes_reset"})
+                    completed_streak = self.passes_in_row
+                    self.passes_in_row = 0
+                    self.ledger.append(EventType.ROUND_RESET, {
+                        "reason": "passes_reset",
+                        "streak": completed_streak,
+                    })
                 self.turn_index = (self.turn_index + 1) % 3
                 continue
 
@@ -124,7 +133,7 @@ class Game:
             played = p.take_cards(ranks)
             self.last_play = played
             self.last_player = self.turn_index
-            passes_in_row = 0
+            self.passes_in_row = 0
             print(f"{p.name} 出：", " ".join([c.short() for c in played]), f"[{m.name}]")
 
             # Log onto ledger (precise codes + human tokens)
